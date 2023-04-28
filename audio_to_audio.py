@@ -213,6 +213,9 @@ async def loop_pipeline(state: State) -> None:
                             websocket.receive_json()
                         )
 
+                    if send_audio_task not in done:
+                        await send_audio_task
+
 
 def read_audio(state: State, loop: asyncio.AbstractEventLoop) -> None:
     """Reads chunks of raw audio from standard input."""
