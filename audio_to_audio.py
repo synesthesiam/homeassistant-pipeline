@@ -9,6 +9,7 @@ import logging
 import sys
 import threading
 from dataclasses import dataclass, field
+from typing import Optional
 
 import aiohttp
 
@@ -115,8 +116,32 @@ async def loop_pipeline(state: State) -> None:
             assert msg["type"] == "auth_ok", msg
             _LOGGER.info("Authenticated")
 
-            # Pipeline loop
             message_id = 1
+            pipeline_id: Optional[str] = None
+            if args.pipeline:
+                # Get list of available pipelines and resolve name
+                await websocket.send_json(
+                    {
+                        "type": "assist_pipeline/pipeline/list",
+                        "id": message_id,
+                    }
+                )
+                msg = await websocket.receive_json()
+                _LOGGER.debug(msg)
+                message_id += 1
+
+                pipelines = msg["result"]["pipelines"]
+                for pipeline in pipelines:
+                    if pipeline["name"] == args.pipeline:
+                        pipeline_id = pipeline["id"]
+                        break
+
+                if not pipeline_id:
+                    raise ValueError(
+                        f"No pipeline named {args.pipeline} in {pipelines}"
+                    )
+
+            # Pipeline loop
             while True:
                 # Clear audio queue
                 while not state.audio_queue.empty():
@@ -135,8 +160,8 @@ async def loop_pipeline(state: State) -> None:
                         "sample_rate": 16000,
                     },
                 }
-                if args.pipeline:
-                    pipeline_args["pipeline"] = args.pipeline
+                if pipeline_id:
+                    pipeline_args["pipeline"] = pipeline_id
                 await websocket.send_json(pipeline_args)
                 message_id += 1
 
